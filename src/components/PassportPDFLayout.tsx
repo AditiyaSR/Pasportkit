@@ -42,7 +42,7 @@ export default function PassportPDFLayout({ passport, publicUrl }: Props) {
     
     if (area === 'Textile labelling' && !isTextileApplicable) return { status: 'Not applicable', color: '#6B665C' };
     
-    if (!field) return { status: 'Missing', color: '#B91C1C' };
+    if (!field) return { status: 'Needs review', color: '#B7791F' };
     if (field.trim().length > 20) return { status: 'Complete', color: '#4F6F52' };
     return { status: 'Needs review', color: '#B7791F' };
   };
