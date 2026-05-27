@@ -295,13 +295,13 @@ export default function GeneratorPage() {
                 {/* Score */}
                 <div className="card p-5 border border-[var(--color-border)]">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold">Data quality score</span>
-                    <span className="text-2xl font-extrabold" style={{ color: getScoreColor(quality.level) }}>{quality.score}/100</span>
+                    <span className="text-sm font-semibold">Data completeness</span>
+                    <span className="text-2xl font-extrabold" style={{ color: getScoreColor(quality.level) }}>{quality.score}%</span>
                   </div>
                   <div className="score-bar mb-2">
                     <div className="score-bar-fill" style={{ width: `${quality.score}%`, background: getScoreColor(quality.level) }} />
                   </div>
-                  <p className="text-sm text-[var(--color-text-muted)]">{getScoreLabel(quality.level)}</p>
+                  <p className="text-sm text-[var(--color-text-muted)]">Transparency profile: {getScoreLabel(quality.level)}</p>
                 </div>
 
                 {/* Warnings */}

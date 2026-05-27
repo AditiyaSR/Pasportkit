@@ -121,11 +121,11 @@ export default function EditPassportPage({ passport: initial, editToken }: Props
             <a href={getPublicPassportUrl(initial.slug)} target="_blank" rel="noopener noreferrer" className="btn-ghost btn-sm no-underline">View public page ↗</a>
           </div>
 
-          {/* Score */}
+          {/* Completeness */}
           <div className="card p-4 mb-6">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">Data quality</span>
-              <span className="font-bold" style={{ color: getScoreColor(quality.level) }}>{quality.score}/100 — {getScoreLabel(quality.level)}</span>
+              <span className="text-sm font-semibold">Data completeness</span>
+              <span className="font-bold" style={{ color: getScoreColor(quality.level) }}>{quality.score}% — Transparency profile: {getScoreLabel(quality.level)}</span>
             </div>
             <div className="score-bar mt-2"><div className="score-bar-fill" style={{ width: `${quality.score}%`, background: getScoreColor(quality.level) }} /></div>
           </div>

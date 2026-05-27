@@ -109,11 +109,15 @@ Set environment variables in the Vercel dashboard.
 - ❌ No multi-tenant organizations
 - ❌ No subscription billing
 
+## Attribution
+
+Landing page structure adapted from [Tailwind Toolbox Landing Page](https://github.com/tailwindtoolbox/Landing-Page), MIT License.
+
 ## Project Structure
 
 ```
 src/
-├── components/          Navbar, Footer
+├── components/          Navbar, Footer, HeroMockup, PassportPDFLayout
 ├── lib/
 │   ├── types.ts         Core types and interfaces
 │   ├── supabase.ts      Supabase client + URL helpers
