@@ -30,7 +30,7 @@ export default function DashboardPage() {
       const { data: pp } = await supabase
         .from('passports')
         .select('*')
-        .eq('workspace_id', ws.id)
+        .or(`workspace_id.eq.${ws.id},user_id.eq.${user.id}`)
         .order('created_at', { ascending: false });
         
       if (pp) {

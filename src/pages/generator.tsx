@@ -79,13 +79,19 @@ export default function GeneratorPage() {
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (session) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch('/api/passports/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ 
           ...form, 
           status: 'published',
-          workspace_id: workspace?.id
+          visibility: 'public',
         }),
       });
       const data = await res.json();

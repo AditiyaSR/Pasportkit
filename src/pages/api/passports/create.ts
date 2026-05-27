@@ -53,17 +53,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const adminClient = getServiceSupabase();
 
-    if (user && workspaceId) {
-      // Validate workspace access
-      const { data: member } = await adminClient
+    if (user) {
+      // Find user workspace from workspace_members
+      let { data: members } = await adminClient
         .from('workspace_members')
-        .select('role, workspaces(plan)')
-        .eq('workspace_id', workspaceId)
-        .eq('user_id', user.id)
-        .single();
+        .select('workspace_id, role, workspaces(plan)')
+        .eq('user_id', user.id);
         
+      let member = members?.length ? members[0] : null;
+
+      // If user provided a specific workspace_id, verify membership
+      if (workspaceId && members) {
+        const found = members.find(m => m.workspace_id === workspaceId);
+        if (found) member = found;
+      }
+
       if (member) {
+        workspaceId = member.workspace_id;
         plan = (member.workspaces as any).plan || 'free';
+      } else {
+        // Fallback: create default workspace for broken accounts
+        const workspaceName = 'My Workspace';
+        const slug = `${workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Math.random().toString(36).substring(7)}`;
+
+        const { data: wsData } = await adminClient.from('workspaces').insert({
+          name: workspaceName,
+          slug,
+          owner_id: user.id,
+          plan: 'free',
+          subscription_status: 'free'
+        }).select().single();
+
+        if (wsData) {
+          workspaceId = wsData.id;
+          await adminClient.from('workspace_members').insert({
+            workspace_id: wsData.id,
+            user_id: user.id,
+            role: 'owner'
+          });
+          await adminClient.from('email_preferences').insert({ workspace_id: wsData.id });
+          plan = 'free';
+        } else {
+          // If we still can't create one, just drop to guest mode
+          user = null;
+          workspaceId = null;
+        }
+      }
+
+      if (user && workspaceId) {
         const limits = getPlanLimits(plan);
         watermark = limits.watermark;
         
@@ -76,14 +113,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (count !== null && !canCreatePassport(plan, count)) {
           return res.status(403).json({ error: 'Plan limit reached. Upgrade to create more passports.' });
         }
-      } else {
-        user = null;
-        workspaceId = null;
       }
     } else {
       user = null;
       workspaceId = null;
     }
+    
+    // Debug logging
+    console.log(`[Create Passport] Auth: ${!!user}, User: ${user?.id || 'none'}, WS: ${workspaceId || 'none'}, Slug: ${slug}`);
 
     const insertData = {
       ...data,
@@ -93,6 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data_quality_score: quality.score,
       readiness_level: quality.level,
       status: 'published',
+      visibility: 'public',
       last_updated: data.last_updated || new Date().toISOString().split('T')[0],
       user_id: user?.id || null,
       workspace_id: workspaceId || null,

@@ -24,6 +24,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
       .from('passports')
       .select('*')
       .eq('slug', slug)
+      .eq('status', 'published')
+      .eq('visibility', 'public')
       .single();
 
     if (error || !data) return { props: { passport: null } };
