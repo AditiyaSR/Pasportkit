@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { nanoid } from 'nanoid';
-import { supabase, getPublicPassportUrl, getEditUrl, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, getPublicPassportUrl, getEditUrl, isSupabaseConfigured, getServiceSupabase } from '@/lib/supabase';
+import { getAuthUser } from '@/lib/server-auth';
+import { getPlanLimits, canCreatePassport } from '@/lib/billing';
+import { trackEvent } from '@/lib/events';
 import { passportCreateSchema } from '@/lib/schema';
 import { calculateDataQuality } from '@/lib/scoring';
 import { detectCategoryModule } from '@/lib/categories';
@@ -42,6 +45,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const quality = calculateDataQuality(fullRecord);
 
+    // Auth check
+    let user = await getAuthUser(req);
+    let workspaceId = req.body.workspace_id || null;
+    let plan = 'free';
+    let watermark = true;
+    
+    const adminClient = getServiceSupabase();
+
+    if (user && workspaceId) {
+      // Validate workspace access
+      const { data: member } = await adminClient
+        .from('workspace_members')
+        .select('role, workspaces(plan)')
+        .eq('workspace_id', workspaceId)
+        .eq('user_id', user.id)
+        .single();
+        
+      if (member) {
+        plan = (member.workspaces as any).plan || 'free';
+        const limits = getPlanLimits(plan);
+        watermark = limits.watermark;
+        
+        // Enforce limits
+        const { count } = await adminClient
+          .from('passports')
+          .select('*', { count: 'exact', head: true })
+          .eq('workspace_id', workspaceId);
+          
+        if (count !== null && !canCreatePassport(plan, count)) {
+          return res.status(403).json({ error: 'Plan limit reached. Upgrade to create more passports.' });
+        }
+      } else {
+        user = null;
+        workspaceId = null;
+      }
+    } else {
+      user = null;
+      workspaceId = null;
+    }
+
     const insertData = {
       ...data,
       slug,
@@ -51,9 +94,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       readiness_level: quality.level,
       status: 'published',
       last_updated: data.last_updated || new Date().toISOString().split('T')[0],
+      user_id: user?.id || null,
+      workspace_id: workspaceId || null,
+      plan_snapshot: plan,
+      watermark,
     };
 
-    const { data: row, error } = await supabase
+    const { data: row, error } = await adminClient
       .from('passports')
       .insert(insertData)
       .select('id, slug')
@@ -63,6 +110,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error('Supabase insert error:', error);
       return res.status(500).json({ error: 'Failed to save passport', details: error.message });
     }
+
+    // Track event
+    await trackEvent('passport_created', row.id, workspaceId, user?.id);
 
     return res.status(201).json({
       id: row.id,

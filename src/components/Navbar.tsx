@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { useState } from 'react';
+import { useAuth, signOut } from '@/lib/auth';
 
 interface NavbarProps {
   /** 'default' = full nav (landing, generator, etc.), 'passport' = simplified for public passport page */
@@ -8,6 +9,7 @@ interface NavbarProps {
 
 export default function Navbar({ variant = 'default' }: NavbarProps) {
   const [open, setOpen] = useState(false);
+  const { user } = useAuth(false);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--color-surface)]/95 backdrop-blur-sm border-b border-[var(--color-border)] screen-only">
@@ -27,18 +29,24 @@ export default function Navbar({ variant = 'default' }: NavbarProps) {
           <>
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-6">
-              <Link href="/sample" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">
-                Examples
-              </Link>
-              <Link href="/docs/checklist" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">
-                Checklist
-              </Link>
-              <Link href="/#pricing" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">
-                Pricing
-              </Link>
-              <Link href="/generator" className="btn-primary btn-sm no-underline">
-                Create passport
-              </Link>
+              {user ? (
+                <>
+                  <Link href="/dashboard" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">Dashboard</Link>
+                  <Link href="/dashboard/passports" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">My Passports</Link>
+                  <Link href="/dashboard/billing" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">Billing</Link>
+                  <Link href="/dashboard/integrations" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">Integrations</Link>
+                  <Link href="/generator" className="btn-primary btn-sm no-underline">Create passport</Link>
+                  <button onClick={signOut} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">Logout</button>
+                </>
+              ) : (
+                <>
+                  <Link href="/sample" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">Examples</Link>
+                  <Link href="/docs/checklist" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">Checklist</Link>
+                  <Link href="/#pricing" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">Pricing</Link>
+                  <Link href="/login" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors no-underline">Login</Link>
+                  <Link href="/generator" className="btn-primary btn-sm no-underline">Create passport</Link>
+                </>
+              )}
             </div>
 
             {/* Mobile toggle */}
@@ -56,10 +64,24 @@ export default function Navbar({ variant = 'default' }: NavbarProps) {
       {/* Mobile menu */}
       {variant === 'default' && open && (
         <div className="md:hidden border-t border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4 flex flex-col gap-3">
-          <Link href="/sample" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Examples</Link>
-          <Link href="/docs/checklist" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Checklist</Link>
-          <Link href="/#pricing" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Pricing</Link>
-          <Link href="/generator" className="btn-primary btn-sm no-underline text-center" onClick={() => setOpen(false)}>Create passport</Link>
+          {user ? (
+            <>
+              <Link href="/dashboard" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Dashboard</Link>
+              <Link href="/dashboard/passports" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>My Passports</Link>
+              <Link href="/dashboard/billing" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Billing</Link>
+              <Link href="/dashboard/integrations" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Integrations</Link>
+              <button onClick={() => { signOut(); setOpen(false); }} className="text-sm text-left text-[var(--color-text-muted)] no-underline">Logout</button>
+              <Link href="/generator" className="btn-primary btn-sm no-underline text-center mt-2" onClick={() => setOpen(false)}>Create passport</Link>
+            </>
+          ) : (
+            <>
+              <Link href="/sample" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Examples</Link>
+              <Link href="/docs/checklist" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Checklist</Link>
+              <Link href="/#pricing" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Pricing</Link>
+              <Link href="/login" className="text-sm text-[var(--color-text-muted)] no-underline" onClick={() => setOpen(false)}>Login</Link>
+              <Link href="/generator" className="btn-primary btn-sm no-underline text-center mt-2" onClick={() => setOpen(false)}>Create passport</Link>
+            </>
+          )}
         </div>
       )}
     </nav>

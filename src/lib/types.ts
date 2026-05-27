@@ -6,6 +6,11 @@ export interface PassportRecord {
   id?: string;
   slug: string;
   edit_token?: string;
+  user_id?: string | null;
+  workspace_id?: string | null;
+  shopify_product_id?: string | null;
+  source?: string;
+  plan_snapshot?: string;
 
   // Core identity
   brand_name: string;
@@ -179,4 +184,103 @@ export const EMPTY_PASSPORT: Omit<PassportRecord, 'slug' | 'edit_token'> = {
   readiness_level: 'needs_review',
   watermark: true,
   last_updated: new Date().toISOString().split('T')[0],
+  user_id: null,
+  workspace_id: null,
+  shopify_product_id: null,
+  source: 'manual',
+  plan_snapshot: 'free',
 };
+
+// ============================================================
+// SaaS Types
+// ============================================================
+
+export interface Profile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  is_super_admin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  owner_id: string;
+  plan: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  subscription_status: string;
+  current_period_end: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  created_at: string;
+  profiles?: Profile;
+}
+
+export interface WorkspaceInvite {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: string;
+  token: string;
+  accepted_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface Subscription {
+  id: string;
+  workspace_id: string;
+  stripe_customer_id: string;
+  stripe_subscription_id: string;
+  stripe_price_id: string;
+  plan: string;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BillingEvent {
+  id: string;
+  workspace_id: string;
+  stripe_event_id: string;
+  event_type: string;
+  data: any;
+  created_at: string;
+}
+
+export interface AiLog {
+  id: string;
+  workspace_id: string | null;
+  user_id: string | null;
+  action: string;
+  input: any;
+  output: any;
+  created_at: string;
+}
+
+export interface EmailLog {
+  id: string;
+  workspace_id: string | null;
+  user_id: string | null;
+  to_email: string;
+  template: string;
+  status: string;
+  provider_id: string;
+  error: string;
+  created_at: string;
+}

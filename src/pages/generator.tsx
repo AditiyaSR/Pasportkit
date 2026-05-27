@@ -8,6 +8,9 @@ import { SAMPLE_TEMPLATES } from '@/lib/samples';
 import { calculateDataQuality, getScoreLabel, getScoreColor } from '@/lib/scoring';
 import { detectCategoryModule, getModuleChecklists } from '@/lib/categories';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
+import { getDefaultWorkspace } from '@/lib/workspace';
+import type { Workspace } from '@/lib/types';
 
 const STEP_LABELS = [
   'Identity',
@@ -32,6 +35,16 @@ export default function GeneratorPage() {
   const [error, setError] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  
+  const { user } = useAuth(false);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [generatingAi, setGeneratingAi] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      getDefaultWorkspace(user.id).then(ws => setWorkspace(ws));
+    }
+  }, [user]);
 
   // Load sample from URL query param
   useEffect(() => {
@@ -69,7 +82,11 @@ export default function GeneratorPage() {
       const res = await fetch('/api/passports/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, status: 'published' }),
+        body: JSON.stringify({ 
+          ...form, 
+          status: 'published',
+          workspace_id: workspace?.id
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create passport');
@@ -137,6 +154,45 @@ export default function GeneratorPage() {
   const prev = () => setStep((s) => Math.max(0, s - 1));
   const next = () => setStep((s) => Math.min(STEP_LABELS.length - 1, s + 1));
 
+  const handleAiSuggest = async () => {
+    if (!workspace || workspace.plan !== 'pro' && process.env.NODE_ENV !== 'development') {
+      alert('AI features require Pro plan. Upgrade in your dashboard.');
+      return;
+    }
+    setGeneratingAi(true);
+    try {
+      const res = await fetch('/api/ai/suggest-passport-fields', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
+        body: JSON.stringify({
+          workspaceId: workspace.id,
+          productData: {
+            brand_name: form.brand_name,
+            product_name: form.product_name,
+            category: form.category,
+            product_type: form.product_type,
+            materials: form.materials,
+          }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      update({
+        care_instructions: form.care_instructions || data.care_instructions || '',
+        safety_warnings: form.safety_warnings || data.safety_warnings || '',
+        repair_info: form.repair_info || data.repair_info || '',
+        recycling_info: form.recycling_info || data.recycling_info || '',
+        warranty_info: form.warranty_info || data.warranty_info || '',
+      });
+      alert('AI suggestions applied! Please review them.');
+    } catch (err: any) {
+      alert(`AI error: ${err.message}`);
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
   // Field helper
   const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
     <div>
@@ -169,6 +225,27 @@ export default function GeneratorPage() {
 
       <main className="pt-14 min-h-screen">
         <div className="max-w-4xl mx-auto px-5 py-10">
+          
+          {!user && (
+            <div className="mb-6 p-4 rounded-lg bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] flex justify-between items-center">
+              <span><strong>Demo mode.</strong> Sign in to save and manage passports in your dashboard.</span>
+              <a href="/login" className="btn-secondary btn-sm">Log in</a>
+            </div>
+          )}
+          {user && workspace && (
+            <div className="mb-6 flex justify-between items-center">
+              <span className="text-sm font-semibold text-[var(--color-accent)]">{workspace.name} ({workspace.plan.toUpperCase()})</span>
+              {(workspace.plan === 'pro' || process.env.NODE_ENV === 'development') && (
+                <button onClick={handleAiSuggest} disabled={generatingAi} className="btn-secondary btn-sm flex items-center gap-2">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {generatingAi ? 'Generating...' : 'Suggest fields with AI'}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div>

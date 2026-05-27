@@ -4,6 +4,7 @@ import { passportCreateSchema } from '@/lib/schema';
 import { calculateDataQuality } from '@/lib/scoring';
 import { detectCategoryModule } from '@/lib/categories';
 import type { PassportRecord } from '@/lib/types';
+import { trackEvent } from '@/lib/events';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -23,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Verify edit_token
   const { data: existing, error: fetchErr } = await supabase
     .from('passports')
-    .select('id, edit_token')
+    .select('id, edit_token, workspace_id, user_id')
     .eq('slug', slug)
     .single();
 
@@ -66,6 +67,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error('Update error:', updateErr);
       return res.status(500).json({ error: 'Failed to update passport' });
     }
+
+    await trackEvent('passport_updated', existing.id, existing.workspace_id, existing.user_id);
 
     return res.status(200).json({
       slug,
