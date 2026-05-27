@@ -33,22 +33,42 @@ export default function PassportPDFLayout({ passport, publicUrl }: Props) {
   };
 
   // Regulatory status helper
-  const getRegStatus = (field?: string) => {
+  const getRegStatus = (area: string, field?: string) => {
+    const isEudrApplicable = ['furniture', 'wood_eudr_watch', 'leather_goods'].includes(passport.product_category_module);
+    const isTextileApplicable = ['textile', 'fashion'].includes(passport.product_category_module);
+    
+    if (area === 'EUDR watch' && !isEudrApplicable) return { status: 'Not applicable', color: '#6B665C' };
+    if (area === 'EUDR watch' && !field) return { status: 'Watchlist', color: '#B7791F' };
+    
+    if (area === 'Textile labelling' && !isTextileApplicable) return { status: 'Not applicable', color: '#6B665C' };
+    
     if (!field) return { status: 'Missing', color: '#B91C1C' };
     if (field.trim().length > 20) return { status: 'Complete', color: '#4F6F52' };
     return { status: 'Needs review', color: '#B7791F' };
   };
 
+  const getRegNote = (area: string, field?: string) => {
+    if (field) return field;
+    const isEudrApplicable = ['furniture', 'wood_eudr_watch', 'leather_goods'].includes(passport.product_category_module);
+    if (area === 'EUDR watch' && !isEudrApplicable) return 'Not applicable for this product category.';
+    if (area === 'EUDR watch') return 'Pending review against watchlist.';
+    
+    const isTextileApplicable = ['textile', 'fashion'].includes(passport.product_category_module);
+    if (area === 'Textile labelling' && !isTextileApplicable) return 'Not applicable for non-textile products.';
+    
+    return 'Not reviewed';
+  };
+
   const regItems = [
-    { area: 'DPP-readiness', field: passport.dpp_readiness_notes, note: passport.dpp_readiness_notes },
-    { area: 'GPSR-style product info', field: passport.gpsr_notes, note: passport.gpsr_notes },
-    { area: 'EUDR watch', field: passport.eudr_watch_notes, note: passport.eudr_watch_notes || 'Not applicable or not reviewed' },
-    { area: 'REACH / SVHC', field: passport.reach_svhc_notes, note: passport.reach_svhc_notes || 'Not reviewed' },
-    { area: 'Packaging / PPWR', field: passport.packaging_ppwr_notes, note: passport.packaging_ppwr_notes || 'Not reviewed' },
+    { area: 'DPP-readiness', field: passport.dpp_readiness_notes },
+    { area: 'GPSR-style product info', field: passport.gpsr_notes },
+    { area: 'EUDR watch', field: passport.eudr_watch_notes },
+    { area: 'REACH / SVHC', field: passport.reach_svhc_notes },
+    { area: 'Packaging / PPWR', field: passport.packaging_ppwr_notes },
   ];
 
-  if (passport.textile_label_notes) {
-    regItems.splice(2, 0, { area: 'Textile labelling', field: passport.textile_label_notes, note: passport.textile_label_notes });
+  if (passport.textile_label_notes || ['textile', 'fashion'].includes(passport.product_category_module as string)) {
+    regItems.splice(2, 0, { area: 'Textile labelling', field: passport.textile_label_notes });
   }
 
   return (
@@ -85,7 +105,7 @@ export default function PassportPDFLayout({ passport, publicUrl }: Props) {
           <div style={{ background: '#fff', padding: '6px', border: '1px solid #E5DED1', borderRadius: '6px' }}>
             <QRCodeSVG value={publicUrl} size={90} bgColor="#ffffff" fgColor="#111111" level="M" />
           </div>
-          <div style={{ fontSize: '7pt', color: '#9C9689', textAlign: 'center' as const, maxWidth: '100px', wordBreak: 'break-all' as const }}>
+          <div style={{ fontSize: '8pt', color: '#6B665C', textAlign: 'center' as const, maxWidth: '120px', wordBreak: 'break-all' as const, lineHeight: '1.2' }}>
             {shortUrl}
           </div>
         </div>
@@ -197,17 +217,18 @@ export default function PassportPDFLayout({ passport, publicUrl }: Props) {
           </thead>
           <tbody>
             {regItems.map((item) => {
-              const { status, color } = getRegStatus(item.field);
+              const { status, color } = getRegStatus(item.area, item.field);
+              const note = getRegNote(item.area, item.field);
               return (
                 <tr key={item.area} style={{ borderBottom: '1px solid #EDE8DD' }}>
-                  <td style={{ padding: '5px 8px 5px 0', fontWeight: 600, color: '#3D3A35' }}>{item.area}</td>
-                  <td style={{ padding: '5px 8px' }}>
-                    <span style={{ fontSize: '8pt', fontWeight: 600, padding: '1px 6px', borderRadius: '3px', background: `${color}12`, color }}>
+                  <td style={{ padding: '8px 8px 8px 0', fontWeight: 600, color: '#3D3A35', verticalAlign: 'top' }}>{item.area}</td>
+                  <td style={{ padding: '8px 8px', verticalAlign: 'top' }}>
+                    <span style={{ fontSize: '8pt', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: `${color}12`, color, display: 'inline-block' }}>
                       {status}
                     </span>
                   </td>
-                  <td style={{ padding: '5px 0 5px 8px', color: '#6B665C', maxWidth: '200px', overflowWrap: 'break-word' as const, wordBreak: 'break-word' as const }}>
-                    {item.note ? (item.note.length > 80 ? item.note.slice(0, 80) + '…' : item.note) : '—'}
+                  <td style={{ padding: '8px 0 8px 8px', color: '#6B665C', verticalAlign: 'top', overflowWrap: 'break-word' as const, wordBreak: 'break-word' as const, lineHeight: '1.4' }}>
+                    {note}
                   </td>
                 </tr>
               );
