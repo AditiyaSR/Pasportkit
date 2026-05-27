@@ -1,0 +1,73 @@
+import { z } from 'zod';
+
+export const passportCreateSchema = z.object({
+  brand_name: z.string().min(1, 'Brand name is required'),
+  product_name: z.string().min(1, 'Product name is required'),
+  category: z.string().default(''),
+  product_type: z.string().default(''),
+  sku: z.string().default(''),
+  model: z.string().default(''),
+  batch_number: z.string().default(''),
+  serial_number: z.string().default(''),
+  gtin: z.string().default(''),
+  product_page_url: z.string().default(''),
+  product_image_url: z.string().default(''),
+  target_markets: z.array(z.string()).default([]),
+  product_category_module: z.string().default('general'),
+  materials: z.string().default(''),
+  composition: z.string().default(''),
+  components: z.array(z.object({
+    name: z.string(),
+    material: z.string(),
+    weight_pct: z.string().optional(),
+  })).default([]),
+  substances_of_concern: z.string().default(''),
+  recycled_content: z.string().default(''),
+  packaging_materials: z.string().default(''),
+  country_of_origin: z.string().default(''),
+  production_country: z.string().default(''),
+  supplier_name: z.string().default(''),
+  manufacturer_name: z.string().default(''),
+  manufacturer_contact: z.string().default(''),
+  importer_contact: z.string().default(''),
+  responsible_person_contact: z.string().default(''),
+  economic_operator_contact: z.string().default(''),
+  care_instructions: z.string().default(''),
+  instructions_for_use: z.string().default(''),
+  safety_warnings: z.string().default(''),
+  age_warning: z.string().default(''),
+  foreseeable_misuse: z.string().default(''),
+  risk_notes: z.string().default(''),
+  repair_info: z.string().default(''),
+  spare_parts_info: z.string().default(''),
+  durability_notes: z.string().default(''),
+  recycling_info: z.string().default(''),
+  end_of_life_info: z.string().default(''),
+  takeback_info: z.string().default(''),
+  resale_info: z.string().default(''),
+  warranty_info: z.string().default(''),
+  support_email: z.string().default(''),
+  support_url: z.string().default(''),
+  gpsr_notes: z.string().default(''),
+  dpp_readiness_notes: z.string().default(''),
+  textile_label_notes: z.string().default(''),
+  reach_svhc_notes: z.string().default(''),
+  packaging_ppwr_notes: z.string().default(''),
+  eudr_watch_notes: z.string().default(''),
+  ce_marking_warning: z.string().default(''),
+  battery_passport_warning: z.string().default(''),
+  visibility: z.enum(['public', 'private']).default('public'),
+  status: z.enum(['draft', 'published']).default('draft'),
+  watermark: z.boolean().default(true),
+  last_updated: z.string().default(''),
+});
+
+export type PassportCreateInput = z.input<typeof passportCreateSchema>;
+export type PassportCreateOutput = z.output<typeof passportCreateSchema>;
+
+export const passportUpdateSchema = passportCreateSchema.extend({
+  slug: z.string().min(1),
+  edit_token: z.string().min(1),
+});
+
+export type PassportUpdateInput = z.input<typeof passportUpdateSchema>;

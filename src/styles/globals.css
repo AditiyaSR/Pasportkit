@@ -1,0 +1,353 @@
+@import "tailwindcss";
+
+/* ============================================================
+   PassportKit — Light Editorial Design System
+   Premium, calm, credible, documentation-first
+   ============================================================ */
+
+@theme inline {
+  --color-bg: #F7F3EA;
+  --color-surface: #FFFFFF;
+  --color-surface-warm: #FAF8F2;
+  --color-text: #111111;
+  --color-text-secondary: #3D3A35;
+  --color-text-muted: #6B665C;
+  --color-text-dim: #9C9689;
+  --color-border: #E5DED1;
+  --color-border-light: #EDE8DD;
+  --color-accent: #4F6F52;
+  --color-accent-light: #6B8F6E;
+  --color-accent-bg: #EDF3ED;
+  --color-warning: #B7791F;
+  --color-warning-bg: #FEF9EC;
+  --color-danger: #B91C1C;
+  --color-danger-bg: #FEF2F2;
+  --color-info: #1E5B8A;
+  --color-info-bg: #EFF6FF;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-fade-up: fade-up 0.5s ease-out both;
+  --animate-slide-in: slide-in 0.4s ease-out both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ===== Base ===== */
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+::selection {
+  background: rgba(79, 111, 82, 0.15);
+  color: var(--color-text);
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+/* ===== Card ===== */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card:hover {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+
+/* ===== Document Card ===== */
+.doc-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ===== Buttons ===== */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.925rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+.btn-primary:hover {
+  background: var(--color-accent-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79,111,82,0.2);
+}
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 0.925rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+.btn-secondary:hover {
+  background: var(--color-surface-warm);
+  border-color: var(--color-text-muted);
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 0.85rem;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--color-accent);
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-decoration: none;
+}
+.btn-ghost:hover {
+  background: var(--color-accent-bg);
+}
+
+/* ===== Form ===== */
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.form-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(79,111,82,0.1);
+}
+.form-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+.form-label {
+  display: block;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+  letter-spacing: 0.01em;
+}
+
+.form-hint {
+  font-size: 0.775rem;
+  color: var(--color-text-muted);
+  margin-top: 3px;
+}
+
+.form-error {
+  font-size: 0.8rem;
+  color: var(--color-danger);
+  margin-top: 3px;
+}
+
+/* ===== Badge ===== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.badge-green {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+.badge-yellow {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+.badge-red {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+.badge-neutral {
+  background: #F3F1EC;
+  color: var(--color-text-muted);
+}
+
+/* ===== Section ===== */
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+}
+
+/* ===== Passport Public Page ===== */
+.passport-section {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.passport-section:last-child {
+  border-bottom: none;
+}
+
+.passport-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+}
+.passport-field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+.passport-field-value {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ===== Score Bar ===== */
+.score-bar {
+  height: 8px;
+  background: var(--color-border-light);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.score-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+/* ===== Step Indicator ===== */
+.step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 2px solid var(--color-border);
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  transition: all 0.2s;
+}
+.step-dot-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: white;
+}
+.step-dot-done {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+/* ===== Watermark ===== */
+.watermark-badge {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  padding: 6px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  z-index: 40;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* ===== Disclaimer ===== */
+.disclaimer-box {
+  padding: 16px 20px;
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+/* ===== Print ===== */
+@media print {
+  body { background: white !important; }
+  .no-print { display: none !important; }
+  .card, .doc-card {
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+  }
+  .watermark-badge { display: none !important; }
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .btn-primary, .btn-secondary { padding: 10px 20px; font-size: 0.9rem; }
+}
+
+/* ===== Animation delays ===== */
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
