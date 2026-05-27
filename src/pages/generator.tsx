@@ -7,7 +7,7 @@ import { EMPTY_PASSPORT, type PassportRecord } from '@/lib/types';
 import { SAMPLE_TEMPLATES } from '@/lib/samples';
 import { calculateDataQuality, getScoreLabel, getScoreColor } from '@/lib/scoring';
 import { detectCategoryModule, getModuleChecklists } from '@/lib/categories';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const STEP_LABELS = [
   'Identity',
@@ -30,6 +30,8 @@ export default function GeneratorPage() {
   const [form, setForm] = useState<FormData>({ ...EMPTY_PASSPORT });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   // Load sample from URL query param
   useEffect(() => {
@@ -85,6 +87,50 @@ export default function GeneratorPage() {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setUploadError('Invalid file type. Please upload JPG, PNG, or WEBP.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('File size exceeds 5MB limit.');
+      return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      setUploadError('Supabase is not configured. Upload unavailable.');
+      return;
+    }
+
+    setUploadingImage(true);
+    setUploadError('');
+    
+    try {
+      const ext = file.name.split('.').pop();
+      const safeName = form.product_name ? form.product_name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'product';
+      const fileName = `${safeName}-${Date.now()}.${ext}`;
+      
+      const { error } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file, { upsert: false });
+
+      if (error) throw error;
+      
+      const { data: publicUrlData } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+        
+      update({ product_image_url: publicUrlData.publicUrl });
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to upload image.');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -165,7 +211,40 @@ export default function GeneratorPage() {
                   <Input field="serial_number" placeholder="Optional" />
                   <Input field="gtin" placeholder="e.g. 1234567890123" hint="Global Trade Item Number" />
                   <Input field="product_page_url" placeholder="https://..." />
-                  <Input field="product_image_url" placeholder="https://... or leave blank" hint="Public URL to product image" />
+                  
+                  <div className="md:col-span-2 mt-2">
+                    <label className="form-label">Product image</label>
+                    <p className="form-hint mb-3">Adding a product image makes the passport look more professional.</p>
+                    
+                    <div className="flex flex-col sm:flex-row gap-4 items-start">
+                      {form.product_image_url ? (
+                        <div className="relative w-32 h-32 rounded-lg border border-[var(--color-border)] overflow-hidden shrink-0 bg-[var(--color-surface)]">
+                          <img src={form.product_image_url} alt="Product preview" className="w-full h-full object-cover" crossOrigin="anonymous" />
+                          <button type="button" onClick={() => update({ product_image_url: '' })} className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-black/70">✕</button>
+                        </div>
+                      ) : (
+                        <div className="w-32 h-32 rounded-lg border border-dashed border-[var(--color-border)] flex items-center justify-center shrink-0 bg-[var(--color-surface-alt)]">
+                          <span className="text-[10px] text-[var(--color-text-dim)]">No image</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex-1 space-y-3 w-full">
+                        <div>
+                          <label className="btn-secondary text-xs cursor-pointer inline-flex items-center justify-center">
+                            {uploadingImage ? 'Uploading…' : 'Upload image (JPG, PNG, WEBP)'}
+                            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
+                          </label>
+                          <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Max file size: 5MB</p>
+                          {uploadError && <p className="form-error">{uploadError}</p>}
+                        </div>
+                        
+                        <div>
+                          <p className="text-xs font-semibold text-[var(--color-text-muted)] mb-1">Or provide a direct image URL:</p>
+                          <input className="form-input text-sm" value={String(form.product_image_url || '')} onChange={(e) => update({ product_image_url: e.target.value })} placeholder="https://..." disabled={uploadingImage} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="form-label">Target markets</label>

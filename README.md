@@ -52,6 +52,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
+4. **Create Image Storage Bucket**:
+   - In Supabase, go to Storage and create a new bucket named `product-images`.
+   - Set the bucket to **Public** (this allows the product images to be viewed on the passport pages).
+   - Under Configuration > Policies, create a new policy for the `product-images` bucket:
+     - **Allowed operations:** `INSERT` (to allow uploads) and `SELECT` (to allow viewing)
+     - **Target roles:** `anon`, `authenticated`
+     - This allows anyone to upload product images (JPG, PNG, WEBP up to 5MB) from the generator without an account.
+   - *Troubleshooting:* If images fail to upload or show up broken, verify that the bucket name is exactly `product-images`, it is set to Public, and the INSERT policy allows the `anon` role.
+
 ### 3. Run locally
 
 ```bash

@@ -113,12 +113,24 @@ export default function PassportPDFLayout({ passport, publicUrl }: Props) {
 
       {/* ===== PRODUCT IMAGE PLACEHOLDER ===== */}
       {passport.product_image_url && (
-        <div style={{ marginBottom: '10px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #E5DED1', maxHeight: '140px' }}>
+        <div style={{ marginBottom: '10px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #E5DED1', maxHeight: '140px', background: '#F3F1EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <img
             src={passport.product_image_url}
             alt={passport.product_name}
             style={{ width: '100%', maxHeight: '140px', objectFit: 'cover' as const }}
             crossOrigin="anonymous"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              const placeholder = document.createElement('div');
+              placeholder.style.padding = '40px';
+              placeholder.style.width = '100%';
+              placeholder.style.textAlign = 'center';
+              placeholder.style.color = '#9C9689';
+              placeholder.style.fontSize = '10pt';
+              placeholder.textContent = 'Product image';
+              target.parentElement?.appendChild(placeholder);
+            }}
           />
         </div>
       )}
