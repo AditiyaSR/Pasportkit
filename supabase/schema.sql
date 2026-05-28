@@ -117,3 +117,15 @@ CREATE POLICY "update_with_token" ON passports
 
 -- Note: In production, restrict UPDATE to service_role only
 -- and use API routes as gatekeepers with edit_token verification.
+
+alter table passports enable row level security;
+
+drop policy if exists "Public can read published passports" on passports;
+
+create policy "Public can read published passports"
+on passports
+for select
+using (
+  status = 'published'
+  and visibility = 'public'
+);

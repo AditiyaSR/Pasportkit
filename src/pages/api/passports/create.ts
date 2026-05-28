@@ -140,8 +140,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       workspaceId = null;
     }
     
-    // Debug logging
-    console.log(`[Create Passport] Auth: ${!!user}, User: ${user?.id || 'none'}, WS: ${workspaceId || 'none'}, Slug: ${slug}`);
+    const authToken = req.headers.authorization;
+    const isAuthTokenPresent = !!authToken && authToken.startsWith('Bearer ');
+    console.log(`[Create Passport] Request received. Auth token present: ${isAuthTokenPresent}, User ID: ${user?.id || 'guest'}, Workspace ID: ${workspaceId || 'none/guest'}`);
 
     const insertData = {
       ...data,
@@ -166,9 +167,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .single();
 
     if (error) {
-      console.error('Supabase insert error:', error);
+      console.error('[Create Passport] Insert failure:', error);
       return res.status(500).json({ error: 'Failed to save passport', details: error.message });
     }
+    
+    console.log(`[Create Passport] Insert success. Slug: ${row.slug}, Status: ${insertData.status}, Visibility: ${insertData.visibility}`);
 
     // Track event
     await trackEvent('passport_created', row.id, workspaceId, user?.id);
