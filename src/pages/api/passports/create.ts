@@ -54,7 +54,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const adminClient = getServiceSupabase();
 
     if (user) {
-      // Find user workspace from workspace_members
+      // 1. Ensure profile exists and check super admin
+      let { data: profile } = await adminClient
+        .from('profiles')
+        .select('is_super_admin')
+        .eq('id', user.id)
+        .single();
+        
+      if (!profile) {
+        // Create fallback profile
+        await adminClient.from('profiles').upsert({
+          id: user.id,
+          email: user.email,
+          full_name: user.email?.split('@')[0] || 'User',
+        });
+        profile = { is_super_admin: false };
+      }
+
+      // 2. Find workspace
       let { data: members } = await adminClient
         .from('workspace_members')
         .select('workspace_id, role, workspaces(plan)')
@@ -62,27 +79,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
       let member = members?.length ? members[0] : null;
 
-      // If user provided a specific workspace_id, verify membership
       if (workspaceId && members) {
         const found = members.find(m => m.workspace_id === workspaceId);
         if (found) member = found;
       }
 
-      if (member) {
-        workspaceId = member.workspace_id;
-        plan = (member.workspaces as any).plan || 'free';
-      } else {
-        // Fallback: create default workspace for broken accounts
+      // 3. Fallback to create workspace if no memberships exist
+      if (!member) {
         const workspaceName = 'My Workspace';
         const slug = `${workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Math.random().toString(36).substring(7)}`;
 
-        const { data: wsData } = await adminClient.from('workspaces').insert({
+        const { data: wsData, error: wsError } = await adminClient.from('workspaces').insert({
           name: workspaceName,
           slug,
           owner_id: user.id,
           plan: 'free',
           subscription_status: 'free'
         }).select().single();
+        
+        if (wsError) console.error('[Create Passport] Fallback workspace error:', wsError);
 
         if (wsData) {
           workspaceId = wsData.id;
@@ -93,18 +108,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           await adminClient.from('email_preferences').insert({ workspace_id: wsData.id });
           plan = 'free';
+          member = { workspace_id: wsData.id, role: 'owner', workspaces: { plan: 'free' } } as any;
         } else {
-          // If we still can't create one, just drop to guest mode
+          // If we still can't create one, drop to guest mode
           user = null;
           workspaceId = null;
         }
+      } else {
+        workspaceId = member.workspace_id;
+        plan = (member.workspaces as any)?.plan || 'free';
       }
 
-      if (user && workspaceId) {
+      // 4. Enforce plan limits if not super admin
+      if (user && workspaceId && !profile?.is_super_admin) {
         const limits = getPlanLimits(plan);
         watermark = limits.watermark;
         
-        // Enforce limits
         const { count } = await adminClient
           .from('passports')
           .select('*', { count: 'exact', head: true })
@@ -113,6 +132,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (count !== null && !canCreatePassport(plan, count)) {
           return res.status(403).json({ error: 'Plan limit reached. Upgrade to create more passports.' });
         }
+      } else if (user && workspaceId && profile?.is_super_admin) {
+        watermark = false; // Super admin gets no watermark
       }
     } else {
       user = null;

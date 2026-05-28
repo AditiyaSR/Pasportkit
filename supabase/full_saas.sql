@@ -202,4 +202,5 @@ create policy "Users can insert passports in their workspace" on passports for i
 
 -- Public passports policy already exists or can be ensured here:
 -- drop policy if exists "Public passports are viewable by everyone" on passports;
--- create policy "Public passports are viewable by everyone" on passports for select using (status = 'published');
+create policy "Public passports are viewable by everyone" on passports
+  for select using (status = 'published' AND visibility = 'public');
