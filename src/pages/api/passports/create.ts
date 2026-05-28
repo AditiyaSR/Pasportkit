@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import type { User } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
-import { getPublicPassportUrl, getEditUrl, isSupabaseConfigured, getServiceSupabase } from '@/lib/supabase';
+import { supabase, getPublicPassportUrl, getEditUrl, isSupabaseConfigured, getServiceSupabase } from '@/lib/supabase';
 import { getAuthUser } from '@/lib/server-auth';
 import { getPlanLimits } from '@/lib/billing';
 import { hasWorkspacePermission } from '@/lib/permissions';
@@ -24,6 +24,13 @@ function workspacePlan(member: WorkspaceMemberWithPlan | null): string {
 
 function logCreate(message: string, details?: Record<string, unknown>) {
   console.log('[Create Passport]', message, details || '');
+}
+
+function publicInsertError(message: string) {
+  if (/invalid api key/i.test(message)) {
+    return 'Supabase server API key is invalid or expired. Check SUPABASE_SERVICE_ROLE_KEY.';
+  }
+  return `Failed to save passport: ${message}`;
 }
 
 async function ensureWorkspaceForUser(
@@ -136,7 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const slug = `${data.brand_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 20)}-${nanoid(8)}`;
     const edit_token = nanoid(32);
     const module = detectCategoryModule(data.category, data.product_type);
-    const adminClient = getServiceSupabase();
+    const adminClient = authTokenPresent ? getServiceSupabase() : null;
 
     const fullRecord = {
       ...data,
@@ -148,13 +155,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } as PassportRecord;
     const quality = calculateDataQuality(fullRecord);
 
-    let user = await getAuthUser(req);
+    let user = authTokenPresent ? await getAuthUser(req) : null;
     let workspaceId: string | null = null;
     let plan = 'free';
     let watermark = true;
     let isSuperAdmin = false;
 
-    if (user) {
+    if (authTokenPresent && !user) {
+      logCreate('Auth resolved', { userFound: false });
+      return res.status(401).json({
+        error: 'Authentication could not be verified. Sign in again or check SUPABASE_SERVICE_ROLE_KEY.',
+      });
+    }
+
+    if (user && adminClient) {
+      logCreate('Auth resolved', { userFound: true, userId: user.id });
       const requestedWorkspaceId = typeof req.body.workspace_id === 'string' ? req.body.workspace_id : null;
       const workspaceContext = await ensureWorkspaceForUser(adminClient, user, requestedWorkspaceId);
       workspaceId = workspaceContext.workspaceId;
@@ -180,6 +195,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const currentCount = count ?? 0;
       logCreate('Workspace resolved', {
         userId: user.id,
+        workspaceFound: true,
         workspaceId,
         plan,
         currentCount,
@@ -191,7 +207,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Plan limit reached. Upgrade to create more passports.' });
       }
     } else {
-      logCreate('No valid user found; creating guest passport', { authTokenPresent });
+      logCreate('Auth resolved', { userFound: false });
+      logCreate('No valid user found; creating guest passport', {
+        authTokenPresent,
+        workspaceFound: false,
+        plan,
+        currentCount: 0,
+        maxPassports: 'guest',
+      });
     }
 
     const insertData = {
@@ -210,7 +233,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       watermark,
     };
 
-    const { data: row, error } = await adminClient
+    logCreate('Insert payload ready', {
+      status: insertData.status,
+      visibility: insertData.visibility,
+      userId: insertData.user_id || 'guest',
+      workspaceId: insertData.workspace_id || 'guest',
+    });
+
+    const insertClient = adminClient || supabase;
+    const { data: row, error } = await insertClient
       .from('passports')
       .insert(insertData)
       .select('id, slug, status, visibility')
@@ -218,10 +249,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (error) {
       console.error('[Create Passport] Insert failure:', error);
-      return res.status(500).json({ error: 'Failed to save passport', details: error.message });
+      logCreate('Insert result', { success: false, error: error.message });
+      return res.status(500).json({ error: publicInsertError(error.message), details: error.message });
     }
 
     logCreate('Insert success', {
+      success: true,
       slug: row.slug,
       status: row.status,
       visibility: row.visibility,

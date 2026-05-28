@@ -6,7 +6,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import PassportPDFLayout from '@/components/PassportPDFLayout';
-import { getServiceSupabase, getPublicPassportUrl } from '@/lib/supabase';
+import { supabase, getServiceSupabase, getPublicPassportUrl } from '@/lib/supabase';
 import { PUBLIC_PASSPORT_SELECT } from '@/lib/public-passport';
 import { calculateDataQuality, getScoreLabel, getScoreColor } from '@/lib/scoring';
 import { getModuleChecklists } from '@/lib/categories';
@@ -21,14 +21,35 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
   if (!slug) return { props: { passport: null } };
 
   try {
-    const adminClient = getServiceSupabase();
-    const { data, error } = await adminClient
-      .from('passports')
-      .select(PUBLIC_PASSPORT_SELECT)
-      .eq('slug', slug)
-      .eq('status', 'published')
-      .eq('visibility', 'public')
-      .single();
+    let data = null;
+    let error = null;
+
+    try {
+      const adminClient = getServiceSupabase();
+      const result = await adminClient
+        .from('passports')
+        .select(PUBLIC_PASSPORT_SELECT)
+        .eq('slug', slug)
+        .eq('status', 'published')
+        .eq('visibility', 'public')
+        .single();
+      data = result.data;
+      error = result.error;
+    } catch {
+      error = new Error('Service role fetch unavailable');
+    }
+
+    if (error || !data) {
+      const fallback = await supabase
+        .from('passports')
+        .select(PUBLIC_PASSPORT_SELECT)
+        .eq('slug', slug)
+        .eq('status', 'published')
+        .eq('visibility', 'public')
+        .single();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error || !data) return { props: { passport: null } };
 
@@ -57,28 +78,9 @@ export default function PublicPassportPage({ passport }: Props) {
     }
   }, [router.query]);
 
-  if (!passport) {
-    return (
-      <>
-        <Navbar variant="passport" />
-        <main className="pt-14 min-h-screen flex items-center justify-center">
-          <div className="text-center px-5">
-            <h1 className="text-2xl font-bold mb-2">Passport not found</h1>
-            <p className="text-[var(--color-text-muted)] mb-6">This passport does not exist or is not published.</p>
-            <a href="/generator" className="btn-primary no-underline">Create a passport</a>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
-
-  const quality = calculateDataQuality(passport);
-  const checklists = getModuleChecklists(passport.product_category_module as CategoryModule);
-
   /* ------ QR Download ------ */
   const handleDownloadQR = () => {
-    if (!qrRef.current) return;
+    if (!passport || !qrRef.current) return;
     const svg = qrRef.current.querySelector('svg');
     if (!svg) return;
     const svgData = new XMLSerializer().serializeToString(svg);
@@ -98,7 +100,7 @@ export default function PublicPassportPage({ passport }: Props) {
 
   /* ------ PDF Download (dedicated PDF layout) ------ */
   const handleDownloadPDF = useCallback(async () => {
-    if (!pdfContainerRef.current) return;
+    if (!passport || !pdfContainerRef.current) return;
     setDownloading(true);
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -185,6 +187,25 @@ export default function PublicPassportPage({ passport }: Props) {
     }
   }, [passport, publicUrl]);
 
+  if (!passport) {
+    return (
+      <>
+        <Navbar variant="passport" />
+        <main className="pt-14 min-h-screen flex items-center justify-center">
+          <div className="text-center px-5">
+            <h1 className="text-2xl font-bold mb-2">Passport not found</h1>
+            <p className="text-[var(--color-text-muted)] mb-6">This passport does not exist or is not published.</p>
+            <a href="/generator" className="btn-primary no-underline">Create a passport</a>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  const quality = calculateDataQuality(passport);
+  const checklists = getModuleChecklists(passport.product_category_module as CategoryModule);
+
   /* ------ JSON Export ------ */
   const handleExportJSON = () => {
     window.open(`/api/passports/export-json?slug=${passport.slug}`, '_blank');
@@ -204,7 +225,7 @@ export default function PublicPassportPage({ passport }: Props) {
   return (
     <>
       <Head>
-        <title>{passport.brand_name} — {passport.product_name} | Product Passport</title>
+        <title>{`${passport.brand_name} - ${passport.product_name} | Product Passport`}</title>
         <meta name="description" content={`Product passport for ${passport.brand_name} ${passport.product_name}. Materials, origin, care, safety, and sustainability information.`} />
       </Head>
 

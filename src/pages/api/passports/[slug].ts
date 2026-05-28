@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getServiceSupabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, getServiceSupabase, isSupabaseConfigured } from '@/lib/supabase';
 import { PUBLIC_PASSPORT_SELECT } from '@/lib/public-passport';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -17,14 +17,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const adminClient = getServiceSupabase();
-    const { data, error } = await adminClient
-      .from('passports')
-      .select(PUBLIC_PASSPORT_SELECT)
-      .eq('slug', slug)
-      .eq('visibility', 'public')
-      .eq('status', 'published')
-      .single();
+    let data = null;
+    let error = null;
+
+    try {
+      const adminClient = getServiceSupabase();
+      const result = await adminClient
+        .from('passports')
+        .select(PUBLIC_PASSPORT_SELECT)
+        .eq('slug', slug)
+        .eq('visibility', 'public')
+        .eq('status', 'published')
+        .single();
+      data = result.data;
+      error = result.error;
+    } catch {
+      error = new Error('Service role fetch unavailable');
+    }
+
+    if (error || !data) {
+      const fallback = await supabase
+        .from('passports')
+        .select(PUBLIC_PASSPORT_SELECT)
+        .eq('slug', slug)
+        .eq('visibility', 'public')
+        .eq('status', 'published')
+        .single();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error || !data) {
       return res.status(404).json({ error: 'Passport not found' });

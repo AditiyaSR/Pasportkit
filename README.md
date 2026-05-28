@@ -40,28 +40,39 @@ PassportKit helps small brands organize product data, create QR-accessible produ
 npm install
 ```
 
-### 2. Configure Supabase
+### 2. Configure environment
 
-1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Run the SQL schema in `supabase/schema.sql` in your Supabase SQL Editor
-3. Copy `.env.example` to `.env.local` and fill in your credentials:
+Copy `.env.example` to `.env.local` and fill in real values. Do not commit `.env.local`.
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+Core passport creation requires:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SITE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Check setup without printing secrets:
+
+```bash
+npm run check:env
+npm run dev:doctor
 ```
 
-4. **Create Image Storage Bucket**:
-   - In Supabase, go to Storage and create a new bucket named `product-images`.
-   - Set the bucket to **Public** (this allows the product images to be viewed on the passport pages).
-   - Under Configuration > Policies, create a new policy for the `product-images` bucket:
-     - **Allowed operations:** `INSERT` (to allow uploads) and `SELECT` (to allow viewing)
-     - **Target roles:** `anon`, `authenticated`
-     - This allows anyone to upload product images (JPG, PNG, WEBP up to 5MB) from the generator without an account.
-   - *Troubleshooting:* If images fail to upload or show up broken, verify that the bucket name is exactly `product-images`, it is set to Public, and the INSERT policy allows the `anon` role.
+### 3. Configure Supabase
 
-### 3. Run locally
+Create a Supabase project, then run these files in Supabase SQL Editor:
+
+1. `supabase/setup_all.sql`
+2. `supabase/rls_policies.sql`
+3. `supabase/storage.sql`
+
+For users created before workspace setup was stable, run `supabase/repair_user_workspace.sql`.
+
+Optional local demo data is in `supabase/dev_seed.sql`.
+
+Open `/admin/setup` locally to see configured/missing services without exposing secret values.
+
+### 4. Run locally
 
 ```bash
 npm run dev
@@ -86,7 +97,7 @@ Open http://localhost:3000
 
 ## SQL Schema
 
-See `supabase/schema.sql` for the complete database schema.
+Use `supabase/setup_all.sql` for a full idempotent setup, `supabase/rls_policies.sql` for policies, and `supabase/storage.sql` for product image storage. `supabase/schema.sql` is kept as the original base schema reference.
 
 ## Environment Variables
 
@@ -95,6 +106,14 @@ See `supabase/schema.sql` for the complete database schema.
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
 | `NEXT_PUBLIC_SITE_URL` | Recommended | Base URL for QR codes (default: http://localhost:3000) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only Supabase service role key |
+| `STRIPE_SECRET_KEY` | Optional | Server-only Stripe secret key |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Optional | Stripe publishable key |
+| `STRIPE_WEBHOOK_SECRET` | Optional | Stripe webhook signature secret |
+| `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_BRAND` / `STRIPE_PRICE_PRO` | Optional | Stripe recurring price IDs |
+| `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` / `SHOPIFY_SCOPES` / `SHOPIFY_APP_URL` | Optional | Shopify OAuth configuration |
+| `OPENAI_API_KEY` | Optional | AI suggestion API key |
+| `RESEND_API_KEY` / `EMAIL_FROM` | Optional | Email automation configuration |
 
 ## Deploy to Vercel
 
@@ -103,20 +122,16 @@ npm install -g vercel
 vercel
 ```
 
-Set environment variables in the Vercel dashboard.
+Set environment variables in the Vercel dashboard. Server-only keys must not be prefixed with `NEXT_PUBLIC_`.
 
 ## What This MVP Does NOT Do
 
 - ❌ No legal certification — does not certify EU or any regulatory compliance
-- ❌ No login or user accounts
-- ❌ No payment processing — pricing is placeholder CTAs
 - ❌ No official EU DPP registry integration
-- ❌ No Shopify or Etsy API integration
 - ❌ No battery passport certification
 - ❌ No CE conformity assessment
-- ❌ No AI or blockchain
-- ❌ No multi-tenant organizations
-- ❌ No subscription billing
+- ❌ No blockchain or official registry submission
+- ❌ No external integrations without the required provider keys
 
 ## Attribution
 

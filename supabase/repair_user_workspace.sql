@@ -1,5 +1,6 @@
--- Repair users created during broken signup/workspace creation.
+-- PassportKit user/workspace repair
 -- Safe to run multiple times. Does not attach orphan passports automatically.
+-- Run after setup_all.sql for users created before workspace setup was stable.
 
 insert into profiles (id, email, full_name, is_super_admin)
 select
@@ -16,8 +17,8 @@ with users_without_workspace as (
   from auth.users users
   where not exists (
     select 1
-    from workspaces
-    where workspaces.owner_id = users.id
+    from workspace_members
+    where workspace_members.user_id = users.id
   )
 ),
 created_workspaces as (
@@ -47,12 +48,25 @@ where workspaces.owner_id is not null
   and workspace_members.id is null
 on conflict (workspace_id, user_id) do nothing;
 
--- Optional orphan passport attachment.
--- Only run after replacing the UUIDs below with an explicit target user/workspace.
+insert into email_preferences (workspace_id)
+select workspaces.id
+from workspaces
+left join email_preferences on email_preferences.workspace_id = workspaces.id
+where email_preferences.id is null;
+
+-- Optional: make a known account super admin.
+-- Replace EMAIL_HERE with your admin email, then run only this statement.
+--
+-- update profiles
+-- set is_super_admin = true
+-- where email = 'EMAIL_HERE';
+
+-- Optional: attach explicit orphan passports to an explicit user/workspace.
+-- Replace UUIDs and slugs before running. Never run this broadly.
 --
 -- update passports
--- set user_id = '00000000-0000-0000-0000-000000000000',
---     workspace_id = '00000000-0000-0000-0000-000000000000'
--- where workspace_id is null
---   and user_id is null
+-- set user_id = 'USER_UUID_HERE',
+--     workspace_id = 'WORKSPACE_UUID_HERE'
+-- where user_id is null
+--   and workspace_id is null
 --   and slug in ('explicit-passport-slug');

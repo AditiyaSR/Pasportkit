@@ -7,8 +7,17 @@ import { supabase } from '@/lib/supabase';
 import { getDefaultWorkspace } from '@/lib/workspace';
 import type { Workspace } from '@/lib/types';
 import { getPlanLimits } from '@/lib/billing';
+import { isStripeConfigured } from '@/lib/env';
 
-export default function BillingPage() {
+interface BillingProps {
+  stripeConfigured: boolean;
+}
+
+export async function getServerSideProps() {
+  return { props: { stripeConfigured: isStripeConfigured() } };
+}
+
+export default function BillingPage({ stripeConfigured }: BillingProps) {
   const { user, loading } = useAuth(true);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [saving, setSaving] = useState(false);
@@ -23,14 +32,18 @@ export default function BillingPage() {
     setWorkspace(ws);
   }
 
-  const handleSubscribe = async (priceId: string) => {
+  const handleSubscribe = async (plan: string) => {
     if (!workspace) return;
     setSaving(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId, workspaceId: workspace.id })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ plan, workspaceId: workspace.id })
       });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
@@ -46,9 +59,13 @@ export default function BillingPage() {
     if (!workspace) return;
     setSaving(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/stripe/create-portal-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ workspaceId: workspace.id })
       });
       const data = await res.json();
@@ -70,6 +87,15 @@ export default function BillingPage() {
       <main className="pt-14 min-h-screen bg-[var(--color-surface-alt)]">
         <div className="max-w-4xl mx-auto px-5 py-10">
           <h1 className="text-2xl font-bold mb-8">Billing & Subscription</h1>
+
+          {!stripeConfigured && (
+            <div className="card p-5 mb-6 border-[var(--color-warning)]">
+              <h2 className="font-bold mb-1">Stripe setup required</h2>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Add Stripe keys and price IDs to enable checkout and customer portal actions. Passport creation still works without Stripe.
+              </p>
+            </div>
+          )}
 
           {workspace && (
             <div className="card p-6 md:p-8 mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -105,7 +131,7 @@ export default function BillingPage() {
               {workspace?.plan === 'starter' ? (
                 <button disabled className="btn-secondary w-full">Current Plan</button>
               ) : (
-                <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER!)} disabled={saving} className="btn-primary w-full">
+                <button onClick={() => handleSubscribe('starter')} disabled={saving || !stripeConfigured} className="btn-primary w-full">
                   Upgrade to Starter
                 </button>
               )}
@@ -124,7 +150,7 @@ export default function BillingPage() {
               {workspace?.plan === 'brand' ? (
                 <button disabled className="btn-secondary w-full">Current Plan</button>
               ) : (
-                <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_STRIPE_PRICE_BRAND!)} disabled={saving} className="btn-primary w-full">
+                <button onClick={() => handleSubscribe('brand')} disabled={saving || !stripeConfigured} className="btn-primary w-full">
                   Upgrade to Brand
                 </button>
               )}
@@ -143,7 +169,7 @@ export default function BillingPage() {
               {workspace?.plan === 'pro' ? (
                 <button disabled className="btn-secondary w-full">Current Plan</button>
               ) : (
-                <button onClick={() => handleSubscribe(process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!)} disabled={saving} className="btn-primary w-full">
+                <button onClick={() => handleSubscribe('pro')} disabled={saving || !stripeConfigured} className="btn-primary w-full">
                   Upgrade to Pro
                 </button>
               )}
