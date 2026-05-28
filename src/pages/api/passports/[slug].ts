@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getServiceSupabase, isSupabaseConfigured } from '@/lib/supabase';
+import { PUBLIC_PASSPORT_SELECT } from '@/lib/public-passport';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -16,9 +17,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { data, error } = await supabase
+    const adminClient = getServiceSupabase();
+    const { data, error } = await adminClient
       .from('passports')
-      .select('*')
+      .select(PUBLIC_PASSPORT_SELECT)
       .eq('slug', slug)
       .eq('visibility', 'public')
       .eq('status', 'published')
@@ -28,9 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'Passport not found' });
     }
 
-    // Remove edit_token from public response
-    const { edit_token, ...publicData } = data;
-    return res.status(200).json(publicData);
+    return res.status(200).json(data);
   } catch (err) {
     console.error('Fetch passport error:', err);
     return res.status(500).json({ error: 'Internal server error' });

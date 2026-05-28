@@ -113,9 +113,10 @@ export type CategoryModule =
 export interface CreatePassportResponse {
   id: string;
   slug: string;
+  status: 'draft' | 'published';
+  visibility: 'public' | 'private';
   publicUrl: string;
   editUrl: string;
-  edit_token: string;
 }
 
 export interface DataQualityResult {

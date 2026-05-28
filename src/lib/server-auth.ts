@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { supabase, getServiceSupabase } from './supabase';
+import { getServiceSupabase } from './supabase';
 import type { User } from '@supabase/supabase-js';
 
 export async function getAuthUser(req: NextApiRequest): Promise<User | null> {
@@ -12,7 +12,8 @@ export async function getAuthUser(req: NextApiRequest): Promise<User | null> {
   if (!token) return null;
 
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const adminClient = getServiceSupabase();
+    const { data: { user }, error } = await adminClient.auth.getUser(token);
     if (error || !user) return null;
     return user;
   } catch {

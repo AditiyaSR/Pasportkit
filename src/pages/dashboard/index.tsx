@@ -27,20 +27,28 @@ export default function DashboardPage() {
     setWorkspace(ws);
     
     if (ws) {
-      const { data: pp } = await supabase
+      const { data: workspacePassports } = await supabase
         .from('passports')
         .select('*')
-        .or(`workspace_id.eq.${ws.id},user_id.eq.${user.id}`)
+        .eq('workspace_id', ws.id)
+        .order('created_at', { ascending: false });
+
+      const { data: legacyPassports } = await supabase
+        .from('passports')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('workspace_id', null)
         .order('created_at', { ascending: false });
         
-      if (pp) {
+      if (workspacePassports) {
+        const pp = [...workspacePassports, ...(legacyPassports || [])];
         setPassports(pp);
-        const published = pp.filter(p => p.status === 'published').length;
-        const totalQuality = pp.reduce((acc, p) => acc + (p.data_quality_score || 0), 0);
+        const published = workspacePassports.filter(p => p.status === 'published').length;
+        const totalQuality = workspacePassports.reduce((acc, p) => acc + (p.data_quality_score || 0), 0);
         setStats({
-          total: pp.length,
+          total: workspacePassports.length,
           published,
-          avgQuality: pp.length ? Math.round(totalQuality / pp.length) : 0,
+          avgQuality: workspacePassports.length ? Math.round(totalQuality / workspacePassports.length) : 0,
         });
       }
     }

@@ -23,13 +23,20 @@ export default function PassportsPage() {
     setWorkspace(ws);
     
     if (ws) {
-      const { data: pp } = await supabase
+      const { data: workspacePassports } = await supabase
         .from('passports')
         .select('*')
-        .or(`workspace_id.eq.${ws.id},user_id.eq.${user.id}`)
+        .eq('workspace_id', ws.id)
+        .order('created_at', { ascending: false });
+
+      const { data: legacyPassports } = await supabase
+        .from('passports')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('workspace_id', null)
         .order('created_at', { ascending: false });
         
-      if (pp) setPassports(pp);
+      if (workspacePassports) setPassports([...workspacePassports, ...(legacyPassports || [])]);
     } else {
       const { data: pp } = await supabase
         .from('passports')

@@ -1,13 +1,115 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import type { User } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
-import { supabase, getPublicPassportUrl, getEditUrl, isSupabaseConfigured, getServiceSupabase } from '@/lib/supabase';
+import { getPublicPassportUrl, getEditUrl, isSupabaseConfigured, getServiceSupabase } from '@/lib/supabase';
 import { getAuthUser } from '@/lib/server-auth';
-import { getPlanLimits, canCreatePassport } from '@/lib/billing';
+import { getPlanLimits } from '@/lib/billing';
+import { hasWorkspacePermission } from '@/lib/permissions';
 import { trackEvent } from '@/lib/events';
 import { passportCreateSchema } from '@/lib/schema';
 import { calculateDataQuality } from '@/lib/scoring';
 import { detectCategoryModule } from '@/lib/categories';
 import type { PassportRecord } from '@/lib/types';
+
+type WorkspaceMemberWithPlan = {
+  workspace_id: string;
+  role: string;
+  workspaces?: { plan?: string | null } | { plan?: string | null }[] | null;
+};
+
+function workspacePlan(member: WorkspaceMemberWithPlan | null): string {
+  const workspace = Array.isArray(member?.workspaces) ? member?.workspaces[0] : member?.workspaces;
+  return workspace?.plan || 'free';
+}
+
+function logCreate(message: string, details?: Record<string, unknown>) {
+  console.log('[Create Passport]', message, details || '');
+}
+
+async function ensureWorkspaceForUser(
+  adminClient: ReturnType<typeof getServiceSupabase>,
+  user: User,
+  requestedWorkspaceId?: string | null
+) {
+  let { data: profile } = await adminClient
+    .from('profiles')
+    .select('is_super_admin')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile) {
+    const { error: profileError } = await adminClient.from('profiles').upsert({
+      id: user.id,
+      email: user.email,
+      full_name: user.email?.split('@')[0] || 'User',
+      is_super_admin: false,
+    });
+
+    if (profileError) {
+      throw new Error(`Failed to ensure profile: ${profileError.message}`);
+    }
+
+    profile = { is_super_admin: false };
+  }
+
+  const { data: members, error: memberError } = await adminClient
+    .from('workspace_members')
+    .select('workspace_id, role, workspaces(plan)')
+    .eq('user_id', user.id);
+
+  if (memberError) {
+    throw new Error(`Failed to load workspace membership: ${memberError.message}`);
+  }
+
+  const typedMembers = (members || []) as WorkspaceMemberWithPlan[];
+  let member =
+    requestedWorkspaceId
+      ? typedMembers.find((item) => item.workspace_id === requestedWorkspaceId) || null
+      : typedMembers[0] || null;
+
+  if (!member) {
+    const workspaceName = 'My Workspace';
+    const workspaceSlug = `${workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${nanoid(8)}`;
+    const { data: workspace, error: workspaceError } = await adminClient
+      .from('workspaces')
+      .insert({
+        name: workspaceName,
+        slug: workspaceSlug,
+        owner_id: user.id,
+        plan: 'free',
+        subscription_status: 'free',
+      })
+      .select('id, plan')
+      .single();
+
+    if (workspaceError || !workspace) {
+      throw new Error(`Failed to create default workspace: ${workspaceError?.message || 'missing workspace row'}`);
+    }
+
+    const { error: upsertMemberError } = await adminClient
+      .from('workspace_members')
+      .upsert({
+        workspace_id: workspace.id,
+        user_id: user.id,
+        role: 'owner',
+      }, { onConflict: 'workspace_id,user_id' });
+
+    if (upsertMemberError) {
+      throw new Error(`Failed to create workspace membership: ${upsertMemberError.message}`);
+    }
+
+    await adminClient.from('email_preferences').insert({ workspace_id: workspace.id });
+    member = { workspace_id: workspace.id, role: 'owner', workspaces: { plan: workspace.plan || 'free' } };
+  }
+
+  return {
+    profile,
+    member,
+    workspaceId: member.workspace_id,
+    role: member.role,
+    plan: workspacePlan(member),
+  };
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -20,6 +122,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 
+  const authHeader = req.headers.authorization;
+  const authTokenPresent = typeof authHeader === 'string' && authHeader.startsWith('Bearer ');
+  logCreate('API called', { authTokenPresent });
+
   try {
     const parsed = passportCreateSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -29,11 +135,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const data = parsed.data;
     const slug = `${data.brand_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 20)}-${nanoid(8)}`;
     const edit_token = nanoid(32);
-
-    // Auto-detect category module
     const module = detectCategoryModule(data.category, data.product_type);
+    const adminClient = getServiceSupabase();
 
-    // Build full record for scoring
     const fullRecord = {
       ...data,
       slug,
@@ -42,107 +146,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data_quality_score: 0,
       readiness_level: 'needs_review',
     } as PassportRecord;
-
     const quality = calculateDataQuality(fullRecord);
 
-    // Auth check
     let user = await getAuthUser(req);
-    let workspaceId = req.body.workspace_id || null;
+    let workspaceId: string | null = null;
     let plan = 'free';
     let watermark = true;
-    
-    const adminClient = getServiceSupabase();
+    let isSuperAdmin = false;
 
     if (user) {
-      // 1. Ensure profile exists and check super admin
-      let { data: profile } = await adminClient
-        .from('profiles')
-        .select('is_super_admin')
-        .eq('id', user.id)
-        .single();
-        
-      if (!profile) {
-        // Create fallback profile
-        await adminClient.from('profiles').upsert({
-          id: user.id,
-          email: user.email,
-          full_name: user.email?.split('@')[0] || 'User',
-        });
-        profile = { is_super_admin: false };
+      const requestedWorkspaceId = typeof req.body.workspace_id === 'string' ? req.body.workspace_id : null;
+      const workspaceContext = await ensureWorkspaceForUser(adminClient, user, requestedWorkspaceId);
+      workspaceId = workspaceContext.workspaceId;
+      plan = workspaceContext.plan;
+      isSuperAdmin = !!workspaceContext.profile?.is_super_admin;
+
+      if (!isSuperAdmin && !hasWorkspacePermission(workspaceContext.role, 'create_passport')) {
+        return res.status(403).json({ error: 'You do not have permission to create passports in this workspace.' });
       }
 
-      // 2. Find workspace
-      let { data: members } = await adminClient
-        .from('workspace_members')
-        .select('workspace_id, role, workspaces(plan)')
-        .eq('user_id', user.id);
-        
-      let member = members?.length ? members[0] : null;
+      const limits = getPlanLimits(plan);
+      watermark = isSuperAdmin ? false : limits.watermark;
 
-      if (workspaceId && members) {
-        const found = members.find(m => m.workspace_id === workspaceId);
-        if (found) member = found;
+      const { count, error: countError } = await adminClient
+        .from('passports')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId);
+
+      if (countError) {
+        throw new Error(`Failed to count workspace passports: ${countError.message}`);
       }
 
-      // 3. Fallback to create workspace if no memberships exist
-      if (!member) {
-        const workspaceName = 'My Workspace';
-        const slug = `${workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Math.random().toString(36).substring(7)}`;
+      const currentCount = count ?? 0;
+      logCreate('Workspace resolved', {
+        userId: user.id,
+        workspaceId,
+        plan,
+        currentCount,
+        maxCount: limits.max_passports,
+        isSuperAdmin,
+      });
 
-        const { data: wsData, error: wsError } = await adminClient.from('workspaces').insert({
-          name: workspaceName,
-          slug,
-          owner_id: user.id,
-          plan: 'free',
-          subscription_status: 'free'
-        }).select().single();
-        
-        if (wsError) console.error('[Create Passport] Fallback workspace error:', wsError);
-
-        if (wsData) {
-          workspaceId = wsData.id;
-          await adminClient.from('workspace_members').insert({
-            workspace_id: wsData.id,
-            user_id: user.id,
-            role: 'owner'
-          });
-          await adminClient.from('email_preferences').insert({ workspace_id: wsData.id });
-          plan = 'free';
-          member = { workspace_id: wsData.id, role: 'owner', workspaces: { plan: 'free' } } as any;
-        } else {
-          // If we still can't create one, drop to guest mode
-          user = null;
-          workspaceId = null;
-        }
-      } else {
-        workspaceId = member.workspace_id;
-        plan = (member.workspaces as any)?.plan || 'free';
-      }
-
-      // 4. Enforce plan limits if not super admin
-      if (user && workspaceId && !profile?.is_super_admin) {
-        const limits = getPlanLimits(plan);
-        watermark = limits.watermark;
-        
-        const { count } = await adminClient
-          .from('passports')
-          .select('*', { count: 'exact', head: true })
-          .eq('workspace_id', workspaceId);
-          
-        if (count !== null && !canCreatePassport(plan, count)) {
-          return res.status(403).json({ error: 'Plan limit reached. Upgrade to create more passports.' });
-        }
-      } else if (user && workspaceId && profile?.is_super_admin) {
-        watermark = false; // Super admin gets no watermark
+      if (!isSuperAdmin && currentCount >= limits.max_passports) {
+        return res.status(403).json({ error: 'Plan limit reached. Upgrade to create more passports.' });
       }
     } else {
-      user = null;
-      workspaceId = null;
+      logCreate('No valid user found; creating guest passport', { authTokenPresent });
     }
-    
-    const authToken = req.headers.authorization;
-    const isAuthTokenPresent = !!authToken && authToken.startsWith('Bearer ');
-    console.log(`[Create Passport] Request received. Auth token present: ${isAuthTokenPresent}, User ID: ${user?.id || 'guest'}, Workspace ID: ${workspaceId || 'none/guest'}`);
 
     const insertData = {
       ...data,
@@ -155,7 +205,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       visibility: 'public',
       last_updated: data.last_updated || new Date().toISOString().split('T')[0],
       user_id: user?.id || null,
-      workspace_id: workspaceId || null,
+      workspace_id: workspaceId,
       plan_snapshot: plan,
       watermark,
     };
@@ -163,28 +213,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { data: row, error } = await adminClient
       .from('passports')
       .insert(insertData)
-      .select('id, slug')
+      .select('id, slug, status, visibility')
       .single();
 
     if (error) {
       console.error('[Create Passport] Insert failure:', error);
       return res.status(500).json({ error: 'Failed to save passport', details: error.message });
     }
-    
-    console.log(`[Create Passport] Insert success. Slug: ${row.slug}, Status: ${insertData.status}, Visibility: ${insertData.visibility}`);
 
-    // Track event
+    logCreate('Insert success', {
+      slug: row.slug,
+      status: row.status,
+      visibility: row.visibility,
+      workspaceId: workspaceId || 'guest',
+    });
+
     await trackEvent('passport_created', row.id, workspaceId, user?.id);
 
     return res.status(201).json({
       id: row.id,
       slug: row.slug,
+      status: row.status,
+      visibility: row.visibility,
       publicUrl: getPublicPassportUrl(row.slug),
       editUrl: getEditUrl(row.slug, edit_token),
-      edit_token,
     });
   } catch (err: unknown) {
     console.error('Create passport error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
   }
 }

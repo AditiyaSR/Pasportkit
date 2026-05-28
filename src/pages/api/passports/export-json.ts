@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getServiceSupabase, isSupabaseConfigured } from '@/lib/supabase';
+import { PUBLIC_PASSPORT_SELECT } from '@/lib/public-passport';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -16,9 +17,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { data, error } = await supabase
+    const adminClient = getServiceSupabase();
+    const { data, error } = await adminClient
       .from('passports')
-      .select('*')
+      .select(PUBLIC_PASSPORT_SELECT)
       .eq('slug', slug)
       .eq('visibility', 'public')
       .eq('status', 'published')
@@ -29,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Remove internal fields
-    const { edit_token, id, ...exportData } = data;
+    const { id, ...exportData } = data;
 
     // Group into sections
     const grouped = {

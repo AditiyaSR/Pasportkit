@@ -6,7 +6,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import PassportPDFLayout from '@/components/PassportPDFLayout';
-import { supabase, getPublicPassportUrl, getSiteUrl } from '@/lib/supabase';
+import { getServiceSupabase, getPublicPassportUrl } from '@/lib/supabase';
+import { PUBLIC_PASSPORT_SELECT } from '@/lib/public-passport';
 import { calculateDataQuality, getScoreLabel, getScoreColor } from '@/lib/scoring';
 import { getModuleChecklists } from '@/lib/categories';
 import type { PassportRecord, CategoryModule } from '@/lib/types';
@@ -20,9 +21,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
   if (!slug) return { props: { passport: null } };
 
   try {
-    const { data, error } = await supabase
+    const adminClient = getServiceSupabase();
+    const { data, error } = await adminClient
       .from('passports')
-      .select('*')
+      .select(PUBLIC_PASSPORT_SELECT)
       .eq('slug', slug)
       .eq('status', 'published')
       .eq('visibility', 'public')
@@ -30,9 +32,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
 
     if (error || !data) return { props: { passport: null } };
 
-    // Remove edit_token from public view
-    const { edit_token, ...publicData } = data;
-    return { props: { passport: publicData as PassportRecord } };
+    return { props: { passport: data as PassportRecord } };
   } catch {
     return { props: { passport: null } };
   }
@@ -42,7 +42,7 @@ export default function PublicPassportPage({ passport }: Props) {
   const router = useRouter();
   const qrRef = useRef<HTMLDivElement>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
-  const [createdInfo, setCreatedInfo] = useState<{ editUrl?: string; edit_token?: string } | null>(null);
+  const [createdInfo, setCreatedInfo] = useState<{ editUrl?: string } | null>(null);
   const [downloading, setDownloading] = useState(false);
 
   const publicUrl = passport ? getPublicPassportUrl(passport.slug) : '';

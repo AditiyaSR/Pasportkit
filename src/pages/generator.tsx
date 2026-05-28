@@ -81,7 +81,7 @@ export default function GeneratorPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (session) {
+      if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
@@ -102,7 +102,6 @@ export default function GeneratorPage() {
         slug: data.slug,
         publicUrl: data.publicUrl,
         editUrl: data.editUrl,
-        edit_token: data.edit_token,
       }));
 
       router.push(`/p/${data.slug}?created=true`);
